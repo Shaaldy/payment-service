@@ -1,0 +1,7 @@
+CREATE TABLE PAYMENTS(
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL UNIQUE,
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
