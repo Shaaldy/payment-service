@@ -1,13 +1,13 @@
 package by.shaaldy.paymentservice.repository;
 
-import by.shaaldy.paymentservice.domain.Payment;
+import java.util.UUID;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.UUID;
-
+import by.shaaldy.paymentservice.domain.Payment;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
-    boolean existsByOrderId(UUID orderId);
+  boolean existsByOrderId(UUID orderId);
 }
