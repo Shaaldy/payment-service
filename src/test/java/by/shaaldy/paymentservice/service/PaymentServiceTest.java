@@ -16,16 +16,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import by.shaaldy.paymentservice.domain.OutboxMessage;
 import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
+import by.shaaldy.paymentservice.domain.Refund;
 import by.shaaldy.paymentservice.messaging.event.payment.OrderCreatedEvent;
 import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
+import by.shaaldy.paymentservice.messaging.event.refund.OrderCancelledEvent;
+import by.shaaldy.paymentservice.messaging.event.refund.RefundProcessedEvent;
 import by.shaaldy.paymentservice.repository.OutboxRepository;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
+import by.shaaldy.paymentservice.repository.RefundRepository;
 import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 public class PaymentServiceTest {
   @Mock private PaymentRepository paymentRepository;
-
+  @Mock private RefundRepository refundRepository;
   @Captor private ArgumentCaptor<Payment> paymentCaptor;
   @Mock private OutboxRepository outboxRepository;
   @Spy private ObjectMapper objectMapper = new ObjectMapper();
@@ -173,5 +177,76 @@ public class PaymentServiceTest {
     Payment persisted = paymentCaptor.getValue();
     assertThat(persisted.getStatus()).isEqualTo(PaymentStatus.FAILED);
     assertThat(persisted.getAmount()).isEqualByComparingTo(totalAmount);
+  }
+
+  @Test
+  void cancelPayment_refundsAndPublishes() {
+    UUID orderId = UUID.randomUUID();
+    UUID paymentId = UUID.randomUUID();
+    Payment payment =
+        Payment.builder()
+            .orderId(orderId)
+            .amount(new BigDecimal("100000.00"))
+            .status(PaymentStatus.SUCCESS)
+            .build();
+    payment.setId(paymentId);
+
+    when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(payment));
+    when(refundRepository.existsByPaymentId(paymentId)).thenReturn(false);
+
+    OrderCancelledEvent event = new OrderCancelledEvent(orderId);
+    Optional<RefundProcessedEvent> res = paymentService.cancelPayment(event);
+
+    assertThat(res).isPresent();
+    assertThat(res.get().orderId()).isEqualTo(orderId);
+
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+
+    ArgumentCaptor<Refund> refundCaptor = ArgumentCaptor.forClass(Refund.class);
+    verify(refundRepository).save(refundCaptor.capture());
+    Refund refund = refundCaptor.getValue();
+    assertThat(refund.getPaymentId()).isEqualTo(paymentId);
+    assertThat(refund.getAmount()).isEqualByComparingTo(payment.getAmount());
+
+    ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
+    verify(outboxRepository).save(outboxCaptor.capture());
+    assertThat(outboxCaptor.getValue().getTopic()).isEqualTo("payment.refunded");
+  }
+
+  @Test
+  void cancelPayment_duplicate_skips() {
+    UUID orderId = UUID.randomUUID();
+    UUID paymentId = UUID.randomUUID();
+    Payment payment =
+        Payment.builder()
+            .orderId(orderId)
+            .amount(new BigDecimal("100.00"))
+            .status(PaymentStatus.SUCCESS)
+            .build();
+    payment.setId(paymentId);
+
+    when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(payment));
+    when(refundRepository.existsByPaymentId(paymentId)).thenReturn(true);
+
+    Optional<RefundProcessedEvent> res =
+        paymentService.cancelPayment(new OrderCancelledEvent(orderId));
+
+    assertThat(res).isEmpty();
+    verify(refundRepository, never()).save(any());
+    verify(outboxRepository, never()).save(any());
+  }
+
+  @Test
+  void cancelPayment_paymentNotFound_skips() {
+    UUID orderId = UUID.randomUUID();
+    when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
+
+    Optional<RefundProcessedEvent> res =
+        paymentService.cancelPayment(new OrderCancelledEvent(orderId));
+
+    assertThat(res).isEmpty();
+    verify(refundRepository, never()).existsByPaymentId(any());
+    verify(refundRepository, never()).save(any());
+    verify(outboxRepository, never()).save(any());
   }
 }
