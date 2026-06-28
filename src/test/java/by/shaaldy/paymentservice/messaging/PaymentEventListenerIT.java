@@ -39,8 +39,8 @@ import org.testcontainers.utility.DockerImageName;
 
 import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
-import by.shaaldy.paymentservice.messaging.event.OrderCreatedEvent;
-import by.shaaldy.paymentservice.messaging.event.PaymentProcessedEvent;
+import by.shaaldy.paymentservice.messaging.event.payment.OrderCreatedEvent;
+import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
 
 @SuppressWarnings("removal")

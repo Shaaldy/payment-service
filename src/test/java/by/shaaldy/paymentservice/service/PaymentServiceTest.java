@@ -10,16 +10,15 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import by.shaaldy.paymentservice.domain.OutboxMessage;
 import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
-import by.shaaldy.paymentservice.messaging.event.OrderCreatedEvent;
-import by.shaaldy.paymentservice.messaging.event.PaymentProcessedEvent;
+import by.shaaldy.paymentservice.messaging.event.payment.OrderCreatedEvent;
+import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
+import by.shaaldy.paymentservice.repository.OutboxRepository;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
