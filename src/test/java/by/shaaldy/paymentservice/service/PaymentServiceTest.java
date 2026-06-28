@@ -20,14 +20,16 @@ import by.shaaldy.paymentservice.messaging.event.payment.OrderCreatedEvent;
 import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
 import by.shaaldy.paymentservice.repository.OutboxRepository;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 public class PaymentServiceTest {
   @Mock private PaymentRepository paymentRepository;
 
-  @InjectMocks private PaymentService paymentService;
-
   @Captor private ArgumentCaptor<Payment> paymentCaptor;
+  @Mock private OutboxRepository outboxRepository;
+  @Spy private ObjectMapper objectMapper = new ObjectMapper();
+  @InjectMocks private PaymentService paymentService;
 
   @Test
   void valid_evenIntegerPart_returnsSuccess() {
@@ -42,7 +44,7 @@ public class PaymentServiceTest {
               p.setId(UUID.randomUUID());
               return p;
             });
-
+    ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
     Optional<PaymentProcessedEvent> res = paymentService.processPayment(event);
 
     assertThat(res).isPresent();
@@ -50,6 +52,10 @@ public class PaymentServiceTest {
     assertThat(processed.orderId()).isEqualTo(id);
     assertThat(processed.paymentId()).isNotNull();
     assertThat(processed.success()).isTrue();
+
+    verify(outboxRepository).save(outboxCaptor.capture());
+    OutboxMessage message = outboxCaptor.getValue();
+    assertThat(message.getTopic()).isEqualTo("payment.processed");
 
     verify(paymentRepository).save(paymentCaptor.capture());
     Payment persisted = paymentCaptor.getValue();
@@ -71,6 +77,7 @@ public class PaymentServiceTest {
               return p;
             });
 
+    ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
     Optional<PaymentProcessedEvent> res = paymentService.processPayment(event);
 
     assertThat(res).isPresent();
@@ -78,6 +85,10 @@ public class PaymentServiceTest {
     assertThat(processed.orderId()).isEqualTo(id);
     assertThat(processed.paymentId()).isNotNull();
     assertThat(processed.success()).isFalse();
+
+    verify(outboxRepository).save(outboxCaptor.capture());
+    OutboxMessage message = outboxCaptor.getValue();
+    assertThat(message.getTopic()).isEqualTo("payment.processed");
 
     verify(paymentRepository).save(paymentCaptor.capture());
     Payment persisted = paymentCaptor.getValue();
@@ -95,6 +106,7 @@ public class PaymentServiceTest {
     Optional<PaymentProcessedEvent> res = paymentService.processPayment(event);
     assertThat(res).isEmpty();
     verify(paymentRepository, never()).save(any());
+    verify(outboxRepository, never()).save(any());
   }
 
   @Test
@@ -111,6 +123,7 @@ public class PaymentServiceTest {
               return p;
             });
 
+    ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
     Optional<PaymentProcessedEvent> res = paymentService.processPayment(event);
 
     assertThat(res).isPresent();
@@ -118,6 +131,10 @@ public class PaymentServiceTest {
     assertThat(processed.orderId()).isEqualTo(id);
     assertThat(processed.paymentId()).isNotNull();
     assertThat(processed.success()).isTrue();
+
+    verify(outboxRepository).save(outboxCaptor.capture());
+    OutboxMessage message = outboxCaptor.getValue();
+    assertThat(message.getTopic()).isEqualTo("payment.processed");
 
     verify(paymentRepository).save(paymentCaptor.capture());
     Payment persisted = paymentCaptor.getValue();
@@ -139,6 +156,7 @@ public class PaymentServiceTest {
               return p;
             });
 
+    ArgumentCaptor<OutboxMessage> outboxCaptor = ArgumentCaptor.forClass(OutboxMessage.class);
     Optional<PaymentProcessedEvent> res = paymentService.processPayment(event);
 
     assertThat(res).isPresent();
@@ -146,6 +164,10 @@ public class PaymentServiceTest {
     assertThat(processed.orderId()).isEqualTo(id);
     assertThat(processed.paymentId()).isNotNull();
     assertThat(processed.success()).isFalse();
+
+    verify(outboxRepository).save(outboxCaptor.capture());
+    OutboxMessage message = outboxCaptor.getValue();
+    assertThat(message.getTopic()).isEqualTo("payment.processed");
 
     verify(paymentRepository).save(paymentCaptor.capture());
     Payment persisted = paymentCaptor.getValue();
