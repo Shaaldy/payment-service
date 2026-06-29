@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 
 import by.shaaldy.paymentservice.domain.Payment;
@@ -35,14 +34,15 @@ import by.shaaldy.paymentservice.messaging.event.refund.OrderCancelledEvent;
 import by.shaaldy.paymentservice.messaging.event.refund.RefundProcessedEvent;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
 import by.shaaldy.paymentservice.repository.RefundRepository;
+import tools.jackson.databind.ObjectMapper;
 
 @SuppressWarnings("removal")
 public class RefundSagaIT extends AbstractIntegrationTest {
   @Autowired private PaymentRepository paymentRepository;
   @Autowired private RefundRepository refundRepository;
-
-  private Producer<String, OrderCancelledEvent> producer;
-  private Consumer<String, RefundProcessedEvent> consumer;
+  @Autowired ObjectMapper objectMapper;
+  private Producer<String, String> producer;
+  private Consumer<String, String> consumer;
   private static final String INPUT_TOPIC = "order.cancelled";
   private static final String OUTPUT_TOPIC = "payment.refunded";
 
@@ -51,22 +51,22 @@ public class RefundSagaIT extends AbstractIntegrationTest {
     refundRepository.deleteAll();
     paymentRepository.deleteAll();
     producer =
-        new DefaultKafkaProducerFactory<>(
-                KafkaTestUtils.producerProps(kafka.getBootstrapServers()),
-                new StringSerializer(),
-                new JsonSerializer<OrderCancelledEvent>())
-            .createProducer();
+            new DefaultKafkaProducerFactory<>(
+                    KafkaTestUtils.producerProps(kafka.getBootstrapServers()),
+                    new StringSerializer(),
+                    new StringSerializer())
+                    .createProducer();
 
     Map<String, Object> cProps =
         KafkaTestUtils.consumerProps(
             kafka.getBootstrapServers(), "test-" + UUID.randomUUID(), false);
     cProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     consumer =
-        new DefaultKafkaConsumerFactory<>(
-                cProps,
-                new StringDeserializer(),
-                new JsonDeserializer<>(RefundProcessedEvent.class, false))
-            .createConsumer();
+            new DefaultKafkaConsumerFactory<>(
+                    cProps,
+                    new StringDeserializer(),
+                    new StringDeserializer())         // ← было JsonDeserializer<>(RefundProcessedEvent.class, false)
+                    .createConsumer();
     consumer.subscribe(List.of(OUTPUT_TOPIC));
   }
 
@@ -88,8 +88,9 @@ public class RefundSagaIT extends AbstractIntegrationTest {
     payment = paymentRepository.save(payment);
     UUID paymentId = payment.getId();
 
+    String payload = objectMapper.writeValueAsString(new OrderCancelledEvent(orderId));
     producer.send(
-        new ProducerRecord<>(INPUT_TOPIC, orderId.toString(), new OrderCancelledEvent(orderId)));
+        new ProducerRecord<>(INPUT_TOPIC, orderId.toString(), payload));
     producer.flush();
 
     await()
@@ -104,21 +105,17 @@ public class RefundSagaIT extends AbstractIntegrationTest {
         .atMost(Duration.ofSeconds(10))
         .until(() -> refundRepository.existsByPaymentId(paymentId));
 
-    RefundProcessedEvent event =
-        await()
-            .atMost(Duration.ofSeconds(10))
-            .until(
-                () -> {
-                  ConsumerRecords<String, RefundProcessedEvent> records =
-                      KafkaTestUtils.getRecords(consumer, Duration.ofMillis(500));
-                  return StreamSupport.stream(records.spliterator(), false)
-                      .map(ConsumerRecord::value)
+    RefundProcessedEvent event = await().atMost(Duration.ofSeconds(10)).until(
+            () -> {
+              ConsumerRecords<String, String> records = KafkaTestUtils.getRecords(consumer, Duration.ofMillis(500));
+              return StreamSupport.stream(records.spliterator(), false)
+                      .map(r -> objectMapper.readValue(r.value(), RefundProcessedEvent.class))  // String → объект
                       .filter(e -> e.orderId().equals(orderId))
                       .findFirst()
                       .orElse(null);
-                },
-                Objects::nonNull
-                );
+            },
+            Objects::nonNull
+    );
     assertThat(event.orderId()).isEqualTo(orderId);
   }
 }
