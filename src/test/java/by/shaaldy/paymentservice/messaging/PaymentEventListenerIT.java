@@ -23,19 +23,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.kafka.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
@@ -44,22 +36,7 @@ import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
 import by.shaaldy.paymentservice.repository.PaymentRepository;
 
 @SuppressWarnings("removal")
-@SpringBootTest
-@Testcontainers
-class PaymentEventListenerIT {
-
-  @Container
-  static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("apache/kafka:3.7.0"));
-
-  @Container static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
-
-  @DynamicPropertySource
-  static void props(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", postgres::getJdbcUrl);
-    registry.add("spring.datasource.username", postgres::getUsername);
-    registry.add("spring.datasource.password", postgres::getPassword);
-    registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-  }
+class PaymentEventListenerIT extends AbstractIntegrationTest {
 
   @Autowired private PaymentRepository paymentRepository;
 
@@ -80,7 +57,8 @@ class PaymentEventListenerIT {
             .createProducer();
 
     Map<String, Object> cProps =
-        KafkaTestUtils.consumerProps(kafka.getBootstrapServers(), "test-group", false);
+        KafkaTestUtils.consumerProps(
+            kafka.getBootstrapServers(), "test-" + UUID.randomUUID(), false);
     cProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     consumer =
         new DefaultKafkaConsumerFactory<>(
