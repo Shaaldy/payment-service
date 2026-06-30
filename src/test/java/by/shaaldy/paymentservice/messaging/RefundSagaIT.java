@@ -13,7 +13,6 @@ import java.util.stream.StreamSupport;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 
 import by.shaaldy.paymentservice.domain.Payment;
@@ -51,22 +49,23 @@ public class RefundSagaIT extends AbstractIntegrationTest {
     refundRepository.deleteAll();
     paymentRepository.deleteAll();
     producer =
-            new DefaultKafkaProducerFactory<>(
-                    KafkaTestUtils.producerProps(kafka.getBootstrapServers()),
-                    new StringSerializer(),
-                    new StringSerializer())
-                    .createProducer();
+        new DefaultKafkaProducerFactory<>(
+                KafkaTestUtils.producerProps(kafka.getBootstrapServers()),
+                new StringSerializer(),
+                new StringSerializer())
+            .createProducer();
 
     Map<String, Object> cProps =
         KafkaTestUtils.consumerProps(
             kafka.getBootstrapServers(), "test-" + UUID.randomUUID(), false);
     cProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
     consumer =
-            new DefaultKafkaConsumerFactory<>(
-                    cProps,
-                    new StringDeserializer(),
-                    new StringDeserializer())         // ← было JsonDeserializer<>(RefundProcessedEvent.class, false)
-                    .createConsumer();
+        new DefaultKafkaConsumerFactory<>(
+                cProps,
+                new StringDeserializer(),
+                new StringDeserializer()) // ← было JsonDeserializer<>(RefundProcessedEvent.class,
+            // false)
+            .createConsumer();
     consumer.subscribe(List.of(OUTPUT_TOPIC));
   }
 
@@ -89,8 +88,7 @@ public class RefundSagaIT extends AbstractIntegrationTest {
     UUID paymentId = payment.getId();
 
     String payload = objectMapper.writeValueAsString(new OrderCancelledEvent(orderId));
-    producer.send(
-        new ProducerRecord<>(INPUT_TOPIC, orderId.toString(), payload));
+    producer.send(new ProducerRecord<>(INPUT_TOPIC, orderId.toString(), payload));
     producer.flush();
 
     await()
@@ -105,17 +103,23 @@ public class RefundSagaIT extends AbstractIntegrationTest {
         .atMost(Duration.ofSeconds(10))
         .until(() -> refundRepository.existsByPaymentId(paymentId));
 
-    RefundProcessedEvent event = await().atMost(Duration.ofSeconds(10)).until(
-            () -> {
-              ConsumerRecords<String, String> records = KafkaTestUtils.getRecords(consumer, Duration.ofMillis(500));
-              return StreamSupport.stream(records.spliterator(), false)
-                      .map(r -> objectMapper.readValue(r.value(), RefundProcessedEvent.class))  // String → объект
+    RefundProcessedEvent event =
+        await()
+            .atMost(Duration.ofSeconds(10))
+            .until(
+                () -> {
+                  ConsumerRecords<String, String> records =
+                      KafkaTestUtils.getRecords(consumer, Duration.ofMillis(500));
+                  return StreamSupport.stream(records.spliterator(), false)
+                      .map(
+                          r ->
+                              objectMapper.readValue(
+                                  r.value(), RefundProcessedEvent.class)) // String → объект
                       .filter(e -> e.orderId().equals(orderId))
                       .findFirst()
                       .orElse(null);
-            },
-            Objects::nonNull
-    );
+                },
+                Objects::nonNull);
     assertThat(event.orderId()).isEqualTo(orderId);
   }
 }
