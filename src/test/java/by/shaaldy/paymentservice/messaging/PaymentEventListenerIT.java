@@ -22,7 +22,6 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
@@ -33,12 +32,9 @@ import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
 import by.shaaldy.paymentservice.messaging.event.payment.OrderCreatedEvent;
 import by.shaaldy.paymentservice.messaging.event.payment.PaymentProcessedEvent;
-import by.shaaldy.paymentservice.repository.PaymentRepository;
 
 @SuppressWarnings("removal")
 class PaymentEventListenerIT extends AbstractIntegrationTest {
-
-  @Autowired private PaymentRepository paymentRepository;
 
   private Producer<String, OrderCreatedEvent> producer;
   private Consumer<String, PaymentProcessedEvent> consumer;
@@ -47,8 +43,6 @@ class PaymentEventListenerIT extends AbstractIntegrationTest {
 
   @BeforeEach
   void setUp() {
-    paymentRepository.deleteAll();
-
     producer =
         new DefaultKafkaProducerFactory<>(
                 KafkaTestUtils.producerProps(kafka.getBootstrapServers()),

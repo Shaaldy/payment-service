@@ -30,14 +30,11 @@ import by.shaaldy.paymentservice.domain.Payment;
 import by.shaaldy.paymentservice.domain.PaymentStatus;
 import by.shaaldy.paymentservice.messaging.event.refund.OrderCancelledEvent;
 import by.shaaldy.paymentservice.messaging.event.refund.RefundProcessedEvent;
-import by.shaaldy.paymentservice.repository.PaymentRepository;
-import by.shaaldy.paymentservice.repository.RefundRepository;
 import tools.jackson.databind.ObjectMapper;
 
 @SuppressWarnings("removal")
 public class RefundSagaIT extends AbstractIntegrationTest {
-  @Autowired private PaymentRepository paymentRepository;
-  @Autowired private RefundRepository refundRepository;
+
   @Autowired ObjectMapper objectMapper;
   private Producer<String, String> producer;
   private Consumer<String, String> consumer;
@@ -46,8 +43,6 @@ public class RefundSagaIT extends AbstractIntegrationTest {
 
   @BeforeEach
   void setUp() {
-    refundRepository.deleteAll();
-    paymentRepository.deleteAll();
     producer =
         new DefaultKafkaProducerFactory<>(
                 KafkaTestUtils.producerProps(kafka.getBootstrapServers()),
